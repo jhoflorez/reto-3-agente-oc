@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agente · Órdenes de compra SAP</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1c2430;--mut:#6b7686;--bd:#dde1e8;--ac:#2255d9;--warn:#fff4d6;--warnbd:#e0a800;--ok:#1f8a4c;--err:#c0392b}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--card:#1d2128;--tx:#e8ebf0;--mut:#98a2b3;--bd:#2e343e;--ac:#6c8cff;--warn:#3a3014;--warnbd:#b8890a;--ok:#4cc58a;--err:#ff7b6b}}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{font:15px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--tx);display:flex;flex-direction:column}
+header{padding:10px 16px;border-bottom:1px solid var(--bd);background:var(--card);display:flex;justify-content:space-between;align-items:center;gap:12px}
+header h1{font-size:16px;margin:0}header small{color:var(--mut)}
+#chat{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px;max-width:900px;width:100%;margin:0 auto}
+.msg{max-width:92%;padding:10px 14px;border-radius:12px;background:var(--card);border:1px solid var(--bd);overflow-x:auto}
+.user{align-self:flex-end;background:var(--ac);color:#fff;border-color:var(--ac)}
+.bot p{margin:.3em 0}.bot ul{margin:.3em 0;padding-left:1.2em}.bot h4{margin:.6em 0 .2em}
+.bot.pending{background:var(--warn);border:2px solid var(--warnbd)}
+.badge{display:inline-block;font-weight:600;font-size:13px;margin-bottom:6px}
+.actions{margin-top:8px;display:flex;gap:8px}
+table{border-collapse:collapse;margin:.4em 0;font-size:14px}th,td{border:1px solid var(--bd);padding:4px 8px;text-align:left}th{background:var(--bg)}
+code{background:var(--bg);padding:1px 4px;border-radius:4px;font-size:13px}
+details.tool{align-self:flex-start;max-width:92%;border:1px dashed var(--bd);border-radius:8px;padding:6px 10px;font-size:13px;background:var(--card)}
+details.tool summary{cursor:pointer;color:var(--mut)}details.tool pre{white-space:pre-wrap;word-break:break-word;margin:6px 0 0;font-size:12px}
+.okk{color:var(--ok)}.koo{color:var(--err)}
+.thinking{color:var(--mut);font-style:italic;align-self:flex-start}
+form{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--bd);background:var(--card);max-width:900px;width:100%;margin:0 auto}
+input{flex:1;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+button{padding:8px 14px;border:0;border-radius:8px;background:var(--ac);color:#fff;font:inherit;cursor:pointer}
+button.sec{background:transparent;color:var(--tx);border:1px solid var(--bd)}button:disabled{opacity:.5;cursor:default}
+</style>
+</head>
+<body>
+<header><h1>Órdenes de compra SAP · agente</h1><small id="info"></small></header>
+<div id="chat"></div>
+<form id="f"><input id="q" autocomplete="off" placeholder='Ej.: Procesa la solicitud "sol-004"…' maxlength="2000"><button id="b">Enviar</button></form>
+<script>
+const chat=document.getElementById("chat"),f=document.getElementById("f"),q=document.getElementById("q"),b=document.getElementById("b");
+let sid=sessionStorage.getItem("sid");if(!sid){sid=crypto.randomUUID();sessionStorage.setItem("sid",sid)}
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const inl=s=>esc(s).replace(/`([^`]+)`/g,"<code>$1</code>").replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
+function md(src){const L=src.split("\n");let o="",i=0;const isRow=l=>/^\s*\|.*\|\s*$/.test(l);
+ const row=r=>r.trim().replace(/^\||\|$/g,"").split("|").map(c=>c.trim());
+ while(i<L.length){const l=L[i];
+  if(isRow(l)&&i+1<L.length&&/^\s*\|[\s:\-|]+\|\s*$/.test(L[i+1])){const h=row(l);i+=2;let bd="";
+   while(i<L.length&&isRow(L[i])){bd+="<tr>"+row(L[i]).map(c=>"<td>"+inl(c)+"</td>").join("")+"</tr>";i++}
+   o+="<table><thead><tr>"+h.map(c=>"<th>"+inl(c)+"</th>").join("")+"</tr></thead><tbody>"+bd+"</tbody></table>";continue}
+  if(/^\s*[-*] /.test(l)){let it="";while(i<L.length&&/^\s*[-*] /.test(L[i])){it+="<li>"+inl(L[i].replace(/^\s*[-*] /,""))+"</li>";i++}o+="<ul>"+it+"</ul>";continue}
+  if(/^#{1,4} /.test(l)){o+="<h4>"+inl(l.replace(/^#+ /,""))+"</h4>";i++;continue}
+  if(l.trim()===""){i++;continue}
+  o+="<p>"+inl(l)+"</p>";i++}
+ return o}
+function add(html,cls){const d=document.createElement("div");d.className=cls;d.innerHTML=html;chat.appendChild(d);chat.scrollTop=chat.scrollHeight;return d}
+function toolCard(t){const d=document.createElement("details");d.className="tool";
+ let res=t.resultado;try{res=JSON.stringify(JSON.parse(t.resultado),null,2)}catch{}
+ d.innerHTML=`<summary>🔧 <b>${esc(t.nombre)}</b>(${esc(JSON.stringify(t.argumentos))}) <span class="${t.ok?"okk":"koo"}">${t.ok?"ok":"error"}</span></summary><pre>${esc(res)}</pre>`;
+ chat.appendChild(d)}
+async function send(text){
+ if(!text.trim())return;
+ chat.querySelectorAll(".actions").forEach(a=>a.remove());
+ add(esc(text),"msg user");q.value="";q.disabled=b.disabled=true;
+ const th=add("Pensando…","thinking");
+ try{
+  const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:sid,message:text})});
+  const d=await r.json();th.remove();
+  if(!r.ok){add("⚠️ "+esc(d.error||"Error"),"msg bot");return}
+  d.toolCalls.forEach(toolCard);
+  const m=add((d.needsConfirmation?'<div class="badge">⚠️ Requiere tu confirmación</div>':"")+md(d.reply),"msg bot"+(d.needsConfirmation?" pending":""));
+  if(d.needsConfirmation){const a=document.createElement("div");a.className="actions";
+   a.innerHTML='<button data-t="Confirmo">Confirmo</button><button class="sec" data-t="No, no la crees todavía">No crear</button>';
+   a.onclick=e=>{const t=e.target.dataset&&e.target.dataset.t;if(t)send(t)};m.appendChild(a)}
+ }catch{th.remove();add("⚠️ No se pudo contactar al servidor.","msg bot")}
+ finally{q.disabled=b.disabled=false;q.focus();chat.scrollTop=chat.scrollHeight}}
+f.onsubmit=e=>{e.preventDefault();send(q.value)};
+fetch("/api/health").then(r=>r.json()).then(h=>{document.getElementById("info").textContent=h.provider+" · "+h.model}).catch(()=>{});
+add("Hola. Dime qué solicitud procesar, por ejemplo: <code>Procesa la solicitud \"sol-001\"</code>.","msg bot");
+</script>
+</body>
+</html>

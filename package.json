@@ -1,0 +1,13 @@
+{
+  "name": "reto-03-oc-sap",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/server.ts",
+    "start": "bun src/server.ts",
+    "demo": "bun run demo.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": { "zod": "^3.23.8", "zod-to-json-schema": "^3.23.5" },
+  "devDependencies": { "typescript": "^5.5.0", "@types/node": "^20.0.0" }
+}
